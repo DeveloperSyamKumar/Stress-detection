@@ -1,12 +1,12 @@
 from flask import Flask, render_template, Response, jsonify
-import gunicorn
 from camera import *
 
 app = Flask(__name__)
 
-headings = ("Name","Album","Artist")
+headings = ("Name", "Album", "Artist")
 df1 = music_rec()
 df1 = df1.head(15)
+
 @app.route('/')
 def index():
     print(df1.to_json(orient='records'))
@@ -29,5 +29,7 @@ def gen_table():
     return df1.to_json(orient='records')
 
 if __name__ == '__main__':
-    app.debug = True
-    app.run()
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    debug = bool(os.environ.get("DEBUG", False))
+    app.run(host='0.0.0.0', port=port, debug=debug)
