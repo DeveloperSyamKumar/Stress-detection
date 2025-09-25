@@ -1,35 +1,34 @@
-from flask import Flask, render_template, Response, jsonify
-from camera import *
+import gradio as gr
+import cv2
+import pandas as pd
+from camera import VideoCamera, music_rec
 
-app = Flask(__name__)
-
+# Initialize camera and table
+cam = VideoCamera()
 headings = ("Name", "Album", "Artist")
-df1 = music_rec()
-df1 = df1.head(15)
+df1 = music_rec().head(15)
 
-@app.route('/')
-def index():
-    print(df1.to_json(orient='records'))
-    return render_template('index.html', headings=headings, data=df1)
-
-def gen(camera):
+# Generator function to stream webcam frames
+def stream_video():
     while True:
-        global df1
-        frame, df1 = camera.get_frame()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+        frame, global_df = cam.get_frame()
+        df = global_df.head(15)  # keep top 15
+        # Convert BGR to RGB for Gradio
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Yield frame and table
+        yield frame_rgb, df.to_dict(orient="records")
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen(VideoCamera()),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+# Build Gradio interface
+with gr.Blocks() as demo:
+    gr.Markdown("## 🎵 Stress Detection with Music Recommendation")
 
-@app.route('/t')
-def gen_table():
-    return df1.to_json(orient='records')
+    with gr.Row():
+        video_output = gr.Video(label="Live Webcam Feed", streaming=True)
+        table_output = gr.Dataframe(headers=headings, label="Top Recommendations")
 
-if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    debug = bool(os.environ.get("DEBUG", False))
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    # Start streaming
+    demo.load(fn=stream_video, inputs=None, outputs=[video_output, table_output])
+
+# Launch app
+if __name__ == "__main__":
+    demo.launch()
